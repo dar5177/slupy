@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Music Room - Wizualizator z Cegiełkami</title>
+    <title>Music Room - Equalizer Cegiełkowy</title>
     
     <link rel="preconnect" href="https://googleapis.com">
     <link rel="preconnect" href="https://gstatic.com" crossorigin>
@@ -98,7 +98,7 @@
                 const source = audioCtx.createMediaStreamSource(stream);
                 const analyser = audioCtx.createAnalyser();
 
-                analyser.smoothingTimeConstant = 0.65; 
+                analyser.smoothingTimeConstant = 0.60; 
                 analyser.fftSize = 256; 
                 
                 const bufferLength = analyser.frequencyBinCount;
@@ -106,10 +106,8 @@
 
                 const numberOfBars = 20; 
                 const currentHeights = new Float32Array(numberOfBars);
-                
-                // --- STRUKTURY DANYCH DLA CEGIEŁEK (PEAK HOLD) ---
-                const peakHeights = new Float32Array(numberOfBars); // Pozycja cegiełki
-                const peakHoldTimers = new Float32Array(numberOfBars); // Czas zamrożenia cegiełki
+                const peakHeights = new Float32Array(numberOfBars); 
+                const peakHoldTimers = new Float32Array(numberOfBars); 
 
                 source.connect(analyser);
 
@@ -130,13 +128,16 @@
                     const usableBufferLength = Math.floor(bufferLength * 0.7); 
                     const sampleSize = usableBufferLength / numberOfBars;
 
-                    const speedUp = 18;  
-                    const speedDown = 10; 
+                    const speedUp = 20;  
+                    const speedDown = 11; 
 
-                    // Parametry fizyki dla cegiełek
-                    const peakHoldTime = 0.4; // Jak długo (w sekundach) cegiełka stoi w miejscu
-                    const peakFallSpeed = 400; // Szybkość opadania cegiełki w pikselach na sekundę
-                    const peakHeightPx = 6; // Grubość cegiełki
+                    // --- PARAMETRY CEGIEŁEK (EQUALIZERA LED) ---
+                    const brickHeight = 12;   // Wysokość pojedynczej cegiełki w pikselach
+                    const brickGap = 4;       // Czarna przerwa między cegiełkami w pikselach
+                    const totalBrickStep = brickHeight + brickGap; // Całkowity krok jednej cegiełki
+
+                    const peakHoldTime = 0.35; 
+                    const peakFallSpeed = 450; 
 
                     for (let i = 0; i < numberOfBars; i++) {
                         let sum = 0;
@@ -152,9 +153,9 @@
                         }
                         const averageVolume = count > 0 ? sum / count : 0;
                         
-                        const targetHeight = (averageVolume / 255) * window.innerHeight * 1.4;
+                        // Maksymalna wysokość słupa dopasowana do wielokrotności cegiełek
+                        const targetHeight = (averageVolume / 255) * window.innerHeight * 1.3;
 
-                        // Płynny ruch głównego słupka
                         if (targetHeight > currentHeights[i]) {
                             currentHeights[i] += (targetHeight - currentHeights[i]) * speedUp * deltaTime;
                         } else {
@@ -166,17 +167,14 @@
                         const barHeight = currentHeights[i];
                         const hue = (i / numberOfBars) * 360;
                         
-                        // --- LOGIKA "CEGIEŁEK" (PEAK HOLD) ---
+                        // Logika wiszącej cegiełki szczytowej
                         if (barHeight > peakHeights[i]) {
-                            // Słupek uderzył w cegiełkę i pcha ją w górę
                             peakHeights[i] = barHeight;
-                            peakHoldTimers[i] = peakHoldTime; // Reset czasu zamrożenia
+                            peakHoldTimers[i] = peakHoldTime;
                         } else {
-                            // Słupek opadł, sprawdzamy licznik zamrożenia cegiełki
                             if (peakHoldTimers[i] > 0) {
-                                peakHoldTimers[i] -= deltaTime; // Cegiełka czeka w powietrzu
+                                peakHoldTimers[i] -= deltaTime;
                             } else {
-                                // Licznik minął – cegiełka zaczyna płynnie spadać
                                 peakHeights[i] -= peakFallSpeed * deltaTime;
                                 if (peakHeights[i] < 0) peakHeights[i] = 0;
                             }
@@ -184,21 +182,29 @@
 
                         const x = i * barWidth;
 
-                        // 1. Rysowanie głównego słupa
+                        // RYSOWANIE SŁUPA JAKO ZBIÓR OSOBNYCH CEGIEŁEK
                         ctx.fillStyle = `hsl(${hue}, 95%, 50%)`;
-                        if (barHeight > 0.5) {
-                            ctx.fillRect(x, window.innerHeight - barHeight, barWidth - 4, barHeight);
+                        
+                        // Obliczamy ile pełnych cegiełek mieści się w obecnej wysokości dźwięku
+                        const numberOfBricksInBar = Math.floor(barHeight / totalBrickStep);
+
+                        for (let b = 0; b < numberOfBricksInBar; b++) {
+                            const yPos = window.innerHeight - (b * totalBrickStep) - brickHeight;
+                            // Rysujemy pojedynczy segment słupa
+                            ctx.fillRect(x, yPos, barWidth - 4, brickHeight);
                         }
 
-                        // 2. Rysowanie wiszącej cegiełki nad słupem (nieco jaśniejsza dla efektu błysku)
+                        // RYSOWANIE POJEDYNCZEJ CEGIEŁKI SZCZYTOWEJ (WIDMO)
                         ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
                         if (peakHeights[i] > 0.5) {
-                            ctx.fillRect(
-                                x, 
-                                window.innerHeight - peakHeights[i] - peakHeightPx - 2, // 2px odstępu od słupka
-                                barWidth - 4, 
-                                peakHeightPx
-                            );
+                            // Zaokrąglamy pozycję cegiełki szczytowej do siatki innych cegiełek, żeby idealnie pasowała
+                            const peakBrickIndex = Math.floor(peakHeights[i] / totalBrickStep);
+                            const peakYPos = window.innerHeight - (peakBrickIndex * totalBrickStep) - brickHeight;
+                            
+                            // Rysuj tylko, jeśli jest powyżej obecnego słupka cegiełek
+                            if (peakBrickIndex >= numberOfBricksInBar) {
+                                ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
+                            }
                         }
                     }
                 }
