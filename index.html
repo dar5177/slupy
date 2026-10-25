@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Music Room - Equalizer Cegiełkowy</title>
     
+    <!-- Poprawione, bezpieczne linki do Google Fonts -->
     <link rel="preconnect" href="https://googleapis.com">
-    <link rel="preconnect" href="https://gstatic.com" crossorigin>
-    <link href="https://googleapis.com" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Montserrat:wght@700&family=Pirata+One&display=swap" rel="stylesheet">
     
     <style>
         * {
@@ -70,7 +71,7 @@
         #startButton:active {
             transform: translate(-50%, -50%) scale(0.95);
         }
-        /* --- STYLOWANIE SUWAKA CZUŁOŚCI --- */
+        /* STYLOWANIE SUWAKA CZUŁOŚCI */
         #controlsContainer {
             position: absolute;
             top: 20px;
@@ -81,7 +82,7 @@
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(5px);
-            display: none; /* Pokazuje się dopiero po uruchomieniu */
+            display: none;
             align-items: center;
             gap: 10px;
         }
@@ -152,18 +153,20 @@
 
         startButton.addEventListener('click', async () => {
             startButton.style.display = 'none';
-            controlsContainer.style.display = 'flex'; // Pokonaj suwak
+            controlsContainer.style.display = 'flex';
 
-            // --- TRYB PEŁNEGO EKRANU ---
-            // Przeglądarki wymagają interakcji użytkownika (kliknięcia), aby włączyć fullscreen.
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen error:", err));
-            } else if (document.documentElement.webkitRequestFullscreen) { /* Safari / iOS */
-                document.documentElement.webkitRequestFullscreen();
+            // Bezpieczne wywołanie Fullscreen
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    await document.documentElement.webkitRequestFullscreen();
+                }
+            } catch (fsErr) {
+                console.log("Tryb pełnoekranowy zablokowany lub nieobsługiwany:", fsErr);
             }
 
             try {
-                // Wyłączenie filtrów systemowych na telefonach/tabletach
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
@@ -176,11 +179,9 @@
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioCtx.createMediaStreamSource(stream);
                 
-                // Programowe wzmocnienie sygnału (powiązane z suwakiem)
                 const gainNode = audioCtx.createGain();
                 gainNode.gain.value = parseFloat(gainSlider.value);
 
-                // Dynamiczna zmiana czułości podczas przesuwania suwaka
                 gainSlider.addEventListener('input', (e) => {
                     gainNode.gain.value = parseFloat(e.target.value);
                 });
@@ -214,14 +215,12 @@
                     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
                     const barWidth = window.innerWidth / numberOfBars;
-                    // Ignorujemy obcięte wysokie częstotliwości dla lepszej czułości na mobile
                     const usableBufferLength = Math.floor(bufferLength * 0.55); 
                     const sampleSize = usableBufferLength / numberOfBars;
 
                     const speedUp = 20;  
                     const speedDown = 11; 
 
-                    // --- PARAMETRY CEGIEŁEK (EQUALIZERA LED) ---
                     const brickHeight = 12;   
                     const brickGap = 4;       
                     const totalBrickStep = brickHeight + brickGap; 
@@ -258,3 +257,10 @@
                         
                         if (barHeight > peakHeights[i]) {
                             peakHeights[i] = barHeight;
+                            peakHoldTimers[i] = peakHoldTime;
+                        } else {
+                            if (peakHoldTimers[i] > 0) {
+                                peakHoldTimers[i] -= deltaTime;
+                            } else {
+                                peakHeights[i] -= peakFallSpeed * deltaTime;
+                                if (peakHeights[i] < 0) peakHeights[i] = 0;
