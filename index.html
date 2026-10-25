@@ -7,7 +7,7 @@
     
     <link rel="preconnect" href="https://googleapis.com">
     <link rel="preconnect" href="https://gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Montserrat:wght@700&family=Pirata+One&display=swap" rel="stylesheet">
+    <link href="https://googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Montserrat:wght@700&family=Pirata+One&display=swap" rel="stylesheet">
     
     <style>
         * {
@@ -197,20 +197,26 @@
                         // RYSOWANIE POJEDYNCZEJ CEGIEŁKI SZCZYTOWEJ (WIDMO)
                         ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
                         if (peakHeights[i] > 0.5) {
-                            // Zaokrąglamy pozycję szczytu do siatki cegiełek, aby "lewitowała" równo nad słupkiem
+                            // Zaokrąglamy pozycję cegiełki szczytowej do siatki innych cegiełek, żeby idealnie pasowała
                             const peakBrickIndex = Math.floor(peakHeights[i] / totalBrickStep);
                             const peakYPos = window.innerHeight - (peakBrickIndex * totalBrickStep) - brickHeight;
                             
-                            ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
+                            // Rysuj tylko, jeśli jest powyżej obecnego słupka cegiełek
+                            if (peakBrickIndex >= numberOfBricksInBar) {
+                                ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
+                            }
                         }
                     }
                 }
 
-                requestAnimationFrame(draw);
+                requestAnimationFrame((time) => {
+                    lastTime = time;
+                    draw(time);
+                });
 
             } catch (err) {
-                console.error('Brak dostępu do mikrofonu lub błąd AudioContext:', err);
-                alert('Aby wizualizator działał, wymagany jest dostęp do mikrofonu.');
+                alert('Błąd dostępu do mikrofonu: ' + err.message);
+                startButton.style.display = 'block';
             }
         });
     </script>
