@@ -7,7 +7,7 @@
     
     <link rel="preconnect" href="https://googleapis.com">
     <link rel="preconnect" href="https://gstatic.com" crossorigin>
-    <link href="https://googleapis.com/css2?family=Cinzel+Decorative:wght=700&family=Montserrat:wght=700&family=Pirata+One&display=swap" rel="stylesheet">
+    <link href="https://googleapis.com" rel="stylesheet">
     
     <style>
         * {
@@ -87,12 +87,10 @@
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
-
         startButton.addEventListener('click', async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                 
-                // Ukrywamy przycisk dopiero po uzyskaniu zgody
                 startButton.style.display = 'none';
 
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -132,7 +130,6 @@
                     const speedUp = 20;  
                     const speedDown = 11; 
 
-                    // --- PARAMETRY CEGIEŁEK (EQUALIZERA LED) ---
                     const brickHeight = 12;   
                     const brickGap = 4;       
                     const totalBrickStep = brickHeight + brickGap; 
@@ -181,7 +178,6 @@
 
                         const x = i * barWidth;
 
-                        // RYSOWANIE SŁUPA JAKO ZBIÓR OSOBNYCH CEGIEŁEK
                         ctx.fillStyle = `hsl(${hue}, 95%, 50%)`;
                         const numberOfBricksInBar = Math.floor(barHeight / totalBrickStep);
 
@@ -190,10 +186,8 @@
                             ctx.fillRect(x, yPos, barWidth - 4, brickHeight);
                         }
 
-                        // RYSOWANIE POJEDYNCZEJ CEGIEŁKI SZCZYTOWEJ (WIDMO) W WYRÓWNANEJ SIATCE
                         ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
                         if (peakHeights[i] > 0.5) {
-                            // Matematyczne wyrównanie szczytu do schodków (siatki cegiełek)
                             const peakBrickIndex = Math.floor(peakHeights[i] / totalBrickStep);
                             const yPosPeak = window.innerHeight - (peakBrickIndex * totalBrickStep) - brickHeight;
                             ctx.fillRect(x, yPosPeak, barWidth - 4, brickHeight);
@@ -205,7 +199,7 @@
 
             } catch (error) {
                 console.error("Błąd dostępu do mikrofonu:", error);
-                alert("Wizualizator wymaga dostępu do mikrofonu, aby działać. Odśwież stronę i zezwól na dostęp.");
+                alert("Wizualizator wymaga dostępu do mikrofonu. Odśwież stronę i zezwól na dostęp.");
             }
         });
     </script>
