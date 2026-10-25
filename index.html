@@ -1,8 +1,169 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Music Room - Equalizer Cegiełkowy</title>
+    
+    <link rel="preconnect" href="https://googleapis.com">
+    <link rel="preconnect" href="https://gstatic.com" crossorigin>
+    <link href="https://googleapis.com" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: "Montserrat", sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #titleText {
+            position: absolute;
+            top: 40px; 
+            width: 100%;
+            text-align: center;
+            font-family: "Pirata One", "Cinzel Decorative", serif; 
+            font-size: 75px; 
+            letter-spacing: 4px;
+            color: #ffffff;
+            z-index: 5;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 
+                         0 0 20px #ff0055, 
+                         0 0 40px #7f00ff;
+            opacity: 0.95;
+        }
+        #startButton {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 35px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+            background: linear-gradient(45deg, #ff007f, #7f00ff);
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 0, 127, 0.4);
+            z-index: 10;
+            font-family: "Montserrat", sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: transform 0.2s;
+        }
+        #startButton:active {
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+        /* --- STYLOWANIE SUWAKA CZUŁOŚCI --- */
+        #controlsContainer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            display: none; /* Pokazuje się dopiero po uruchomieniu */
+            align-items: center;
+            gap: 10px;
+        }
+        #controlsContainer label {
+            color: #fff;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+        #gainSlider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 120px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+        }
+        #gainSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ff007f;
+            cursor: pointer;
+            box-shadow: 0 0 8px #ff007f;
+        }
+        #gainSlider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #ff007f;
+            cursor: pointer;
+            box-shadow: 0 0 8px #ff007f;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="titleText">Music Room</div>
+    <button id="startButton">Uruchom wizualizator</button>
+    
+    <div id="controlsContainer">
+        <label for="gainSlider">Czułość:</label>
+        <input type="range" id="gainSlider" min="0.5" max="8.0" step="0.1" value="2.5">
+    </div>
+
+    <canvas id="visualizer"></canvas>
+
+    <script>
+        const startButton = document.getElementById('startButton');
+        const controlsContainer = document.getElementById('controlsContainer');
+        const gainSlider = document.getElementById('gainSlider');
+        const canvas = document.getElementById('visualizer');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+            ctx.scale(dpr, dpr);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
         startButton.addEventListener('click', async () => {
             startButton.style.display = 'none';
+            controlsContainer.style.display = 'flex'; // Pokonaj suwak
+
+            // --- TRYB PEŁNEGO EKRANU ---
+            // Przeglądarki wymagają interakcji użytkownika (kliknięcia), aby włączyć fullscreen.
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen error:", err));
+            } else if (document.documentElement.webkitRequestFullscreen) { /* Safari / iOS */
+                document.documentElement.webkitRequestFullscreen();
+            }
 
             try {
-                // ROZWIĄZANIE 1: Wyłączenie filtrów systemowych na telefonach/tabletach
+                // Wyłączenie filtrów systemowych na telefonach/tabletach
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
@@ -15,13 +176,16 @@
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioCtx.createMediaStreamSource(stream);
                 
-                // ROZWIĄZANIE 2: Dodatkowe programowe wzmocnienie sygnału (GainNode)
-                // Telefony mają bardzo ciche wejścia mikrofonowe w przeglądarkach.
+                // Programowe wzmocnienie sygnału (powiązane z suwakiem)
                 const gainNode = audioCtx.createGain();
-                gainNode.gain.value = 2.5; // Zwiększ tę wartość (np. do 3.0 - 4.0), jeśli słupki nadal będą za niskie
+                gainNode.gain.value = parseFloat(gainSlider.value);
+
+                // Dynamiczna zmiana czułości podczas przesuwania suwaka
+                gainSlider.addEventListener('input', (e) => {
+                    gainNode.gain.value = parseFloat(e.target.value);
+                });
 
                 const analyser = audioCtx.createAnalyser();
-
                 analyser.smoothingTimeConstant = 0.60; 
                 analyser.fftSize = 256; 
                 
@@ -33,7 +197,6 @@
                 const peakHeights = new Float32Array(numberOfBars); 
                 const peakHoldTimers = new Float32Array(numberOfBars); 
 
-                // Łączenie węzłów audio: Źródło -> Wzmocnienie -> Analizer
                 source.connect(gainNode);
                 gainNode.connect(analyser);
 
@@ -51,8 +214,7 @@
                     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
                     const barWidth = window.innerWidth / numberOfBars;
-                    // ROZWIĄZANIE 3: Ignorujemy wycięte przez telefon wysokie częstotliwości
-                    // Zamiast 0.7 bierzemy 0.55 pasma, bo góra pasma na mobile i tak jest głucha
+                    // Ignorujemy obcięte wysokie częstotliwości dla lepszej czułości na mobile
                     const usableBufferLength = Math.floor(bufferLength * 0.55); 
                     const sampleSize = usableBufferLength / numberOfBars;
 
@@ -81,7 +243,6 @@
                         }
                         const averageVolume = count > 0 ? sum / count : 0;
                         
-                        // Zwiększony mnożnik wysokości ekranu z 1.3 na 1.6 dla lepszej dynamiki
                         const targetHeight = (averageVolume / 255) * window.innerHeight * 1.6;
 
                         if (targetHeight > currentHeights[i]) {
@@ -97,39 +258,3 @@
                         
                         if (barHeight > peakHeights[i]) {
                             peakHeights[i] = barHeight;
-                            peakHoldTimers[i] = peakHoldTime;
-                        } else {
-                            if (peakHoldTimers[i] > 0) {
-                                peakHoldTimers[i] -= deltaTime;
-                            } else {
-                                peakHeights[i] -= peakFallSpeed * deltaTime;
-                                if (peakHeights[i] < 0) peakHeights[i] = 0;
-                            }
-                        }
-
-                        const x = i * barWidth;
-
-                        ctx.fillStyle = `hsl(${hue}, 95%, 50%)`;
-                        const numberOfBricksInBar = Math.floor(barHeight / totalBrickStep);
-
-                        for (let b = 0; b < numberOfBricksInBar; b++) {
-                            const yPos = window.innerHeight - (b * totalBrickStep) - brickHeight;
-                            ctx.fillRect(x, yPos, barWidth - 4, brickHeight);
-                        }
-
-                        ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
-                        if (peakHeights[i] > 0.5) {
-                            const peakBrickIndex = Math.floor(peakHeights[i] / totalBrickStep);
-                            const peakYPos = window.innerHeight - (peakBrickIndex * totalBrickStep) - brickHeight;
-                            ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
-                        }
-                    }
-                }
-                
-                requestAnimationFrame(draw);
-
-            } catch (err) {
-                console.error('Błąd dostępu do mikrofonu:', err);
-                alert('Nie można uruchomić wizualizatora. Wymagany jest dostęp do mikrofonu.');
-            }
-        });
