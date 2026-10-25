@@ -7,7 +7,7 @@
     
     <link rel="preconnect" href="https://googleapis.com">
     <link rel="preconnect" href="https://gstatic.com" crossorigin>
-    <link href="https://googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Montserrat:wght@700&family=Pirata+One&display=swap" rel="stylesheet">
+    <link href="https://googleapis.com" rel="stylesheet">
     
     <style>
         * {
@@ -92,7 +92,15 @@
             startButton.style.display = 'none';
 
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                // Konfiguracja mikrofonu wyłączająca systemowe tłumienie szumów i echa
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }, 
+                    video: false 
+                });
                 
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioCtx.createMediaStreamSource(stream);
@@ -109,7 +117,16 @@
                 const peakHeights = new Float32Array(numberOfBars); 
                 const peakHoldTimers = new Float32Array(numberOfBars); 
 
-                source.connect(analyser);
+                // Filtr typu peaking podbijający pasmo wysokich tonów (około 4kHz i wyżej) o 12dB
+                const highBoostFilter = audioCtx.createBiquadFilter();
+                highBoostFilter.type = "peaking";
+                highBoostFilter.frequency.value = 4000;
+                highBoostFilter.Q.value = 1.0;
+                highBoostFilter.gain.value = 12;
+
+                // Połączenie: Mikrofon -> Filtr -> Analizator dźwięku
+                source.connect(highBoostFilter);
+                highBoostFilter.connect(analyser);
 
                 let lastTime = performance.now();
 
@@ -197,26 +214,18 @@
                         // RYSOWANIE POJEDYNCZEJ CEGIEŁKI SZCZYTOWEJ (WIDMO)
                         ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
                         if (peakHeights[i] > 0.5) {
-                            // Zaokrąglamy pozycję cegiełki szczytowej do siatki innych cegiełek, żeby idealnie pasowała
-                            const peakBrickIndex = Math.floor(peakHeights[i] / totalBrickStep);
-                            const peakYPos = window.innerHeight - (peakBrickIndex * totalBrickStep) - brickHeight;
-                            
-                            // Rysuj tylko, jeśli jest powyżej obecnego słupka cegiełek
-                            if (peakBrickIndex >= numberOfBricksInBar) {
-                                ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
-                            }
+                            // Zaokrąglamy pozycję cegiełki do siatki pikseli
+                            const peakYPos = window.innerHeight - peakHeights[i];
+                            ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
                         }
                     }
                 }
 
-                requestAnimationFrame((time) => {
-                    lastTime = time;
-                    draw(time);
-                });
+                // Pierwsze wywołanie animacji
+                requestAnimationFrame(draw);
 
             } catch (err) {
-                alert('Błąd dostępu do mikrofonu: ' + err.message);
-                startButton.style.display = 'block';
+                console.error("Błąd mikrofonu:", err);
             }
         });
     </script>
