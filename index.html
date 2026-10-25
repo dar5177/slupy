@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Music Room - Equalizer Cegiełkowy</title>
     
-    <!-- POPRAWIONE LINKI DO CZCIONEK GOOGLE -->
-    <link rel="preconnect" href="https://googleapis.com">
-    <link rel="preconnect" href="https://gstatic.com" crossorigin>
-    <link href="https://googleapis.com/css2?family=Cinzel+Decorative:wght=700&family=Montserrat:wght=700&family=Pirata+One&display=swap" rel="stylesheet">
-    
     <style>
+        /* Stabilny i nowoczesny import czcionek Google */
+        @import url('https://googleapis.com');
+
         * {
             box-sizing: border-box;
             margin: 0;
@@ -93,11 +91,12 @@
             startButton.style.display = 'none';
 
             try {
+                // Przywrócono autoGainControl, aby iPad nie ściszał całkowicie mikrofonu
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: false,
                         noiseSuppression: false,
-                        autoGainControl: false
+                        autoGainControl: true
                     }, 
                     video: false 
                 });
@@ -117,14 +116,8 @@
                 const peakHeights = new Float32Array(numberOfBars); 
                 const peakHoldTimers = new Float32Array(numberOfBars); 
 
-                const highBoostFilter = audioCtx.createBiquadFilter();
-                highBoostFilter.type = "peaking";
-                highBoostFilter.frequency.value = 4000;
-                highBoostFilter.Q.value = 1.0;
-                highBoostFilter.gain.value = 15; // Zwiększone podbicie sprzętowe
-
-                source.connect(highBoostFilter);
-                highBoostFilter.connect(analyser);
+                // Bezpośrednie i czyste połączenie (bez filtrów psujących głośność na iOS)
+                source.connect(analyser);
 
                 let lastTime = performance.now();
 
@@ -167,13 +160,17 @@
                         }
                         let averageVolume = count > 0 ? sum / count : 0;
                         
-                        // PROGRAMOWE PODBICIE WYSOKICH TONÓW DLA URZĄDZEŃ MOBILNYCH
-                        // Im bardziej w prawo (wyższe tony), tym mocniej mnożymy wartość, max x2.2 na ostatnim słupku
+                        // AGRESYWNIEJSZE, MATEMATYCZNE PODBICIE WYSOKICH TONÓW (Prawa strona wykresu)
+                        // Rozpoczyna się płynnie od środka pasma i liniowo rośnie ku końcowi
                         if (i >= numberOfBars / 2) {
-                            const boostFactor = 1 + ((i - numberOfBars / 2) / (numberOfBars / 2)) * 1.2;
-                            averageVolume *= boostFactor;
-                            if (averageVolume > 255) averageVolume = 255;
+                            const multiplier = 1.0 + ((i - numberOfBars / 2) / (numberOfBars / 2)) * 2.0; 
+                            averageVolume *= multiplier;
+                        } else {
+                            // Delikatne wzmocnienie również dla basów/średnich, aby zrekompensować ewentualne tłumienie iPada
+                            averageVolume *= 1.2; 
                         }
+                        
+                        if (averageVolume > 255) averageVolume = 255;
                         
                         const targetHeight = (averageVolume / 255) * window.innerHeight * 1.3;
 
