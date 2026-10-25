@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Music Room - Equalizer Cegiełkowy</title>
     
+    <link rel="preconnect" href="https://googleapis.com">
+    <link rel="preconnect" href="https://gstatic.com" crossorigin>
+    <link href="https://googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Montserrat:wght@700&family=Pirata+One&display=swap" rel="stylesheet">
+    
     <style>
-        /* Stabilny i nowoczesny import czcionek Google */
-        @import url('https://googleapis.com');
-
         * {
             box-sizing: border-box;
             margin: 0;
@@ -91,15 +92,7 @@
             startButton.style.display = 'none';
 
             try {
-                // Przywrócono autoGainControl, aby iPad nie ściszał całkowicie mikrofonu
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: true
-                    }, 
-                    video: false 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                 
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const source = audioCtx.createMediaStreamSource(stream);
@@ -116,7 +109,6 @@
                 const peakHeights = new Float32Array(numberOfBars); 
                 const peakHoldTimers = new Float32Array(numberOfBars); 
 
-                // Bezpośrednie i czyste połączenie (bez filtrów psujących głośność na iOS)
                 source.connect(analyser);
 
                 let lastTime = performance.now();
@@ -139,9 +131,10 @@
                     const speedUp = 20;  
                     const speedDown = 11; 
 
-                    const brickHeight = 12;   
-                    const brickGap = 4;       
-                    const totalBrickStep = brickHeight + brickGap; 
+                    // --- PARAMETRY CEGIEŁEK (EQUALIZERA LED) ---
+                    const brickHeight = 12;   // Wysokość pojedynczej cegiełki w pikselach
+                    const brickGap = 4;       // Czarna przerwa między cegiełkami w pikselach
+                    const totalBrickStep = brickHeight + brickGap; // Całkowity krok jednej cegiełki
 
                     const peakHoldTime = 0.35; 
                     const peakFallSpeed = 450; 
@@ -158,20 +151,9 @@
                                 count++;
                             }
                         }
-                        let averageVolume = count > 0 ? sum / count : 0;
+                        const averageVolume = count > 0 ? sum / count : 0;
                         
-                        // AGRESYWNIEJSZE, MATEMATYCZNE PODBICIE WYSOKICH TONÓW (Prawa strona wykresu)
-                        // Rozpoczyna się płynnie od środka pasma i liniowo rośnie ku końcowi
-                        if (i >= numberOfBars / 2) {
-                            const multiplier = 1.0 + ((i - numberOfBars / 2) / (numberOfBars / 2)) * 2.0; 
-                            averageVolume *= multiplier;
-                        } else {
-                            // Delikatne wzmocnienie również dla basów/średnich, aby zrekompensować ewentualne tłumienie iPada
-                            averageVolume *= 1.2; 
-                        }
-                        
-                        if (averageVolume > 255) averageVolume = 255;
-                        
+                        // Maksymalna wysokość słupa dopasowana do wielokrotności cegiełek
                         const targetHeight = (averageVolume / 255) * window.innerHeight * 1.3;
 
                         if (targetHeight > currentHeights[i]) {
@@ -185,6 +167,7 @@
                         const barHeight = currentHeights[i];
                         const hue = (i / numberOfBars) * 360;
                         
+                        // Logika wiszącej cegiełki szczytowej
                         if (barHeight > peakHeights[i]) {
                             peakHeights[i] = barHeight;
                             peakHoldTimers[i] = peakHoldTime;
@@ -199,27 +182,41 @@
 
                         const x = i * barWidth;
 
+                        // RYSOWANIE SŁUPA JAKO ZBIÓR OSOBNYCH CEGIEŁEK
                         ctx.fillStyle = `hsl(${hue}, 95%, 50%)`;
                         
+                        // Obliczamy ile pełnych cegiełek mieści się w obecnej wysokości dźwięku
                         const numberOfBricksInBar = Math.floor(barHeight / totalBrickStep);
 
                         for (let b = 0; b < numberOfBricksInBar; b++) {
                             const yPos = window.innerHeight - (b * totalBrickStep) - brickHeight;
+                            // Rysujemy pojedynczy segment słupa
                             ctx.fillRect(x, yPos, barWidth - 4, brickHeight);
                         }
 
+                        // RYSOWANIE POJEDYNCZEJ CEGIEŁKI SZCZYTOWEJ (WIDMO)
                         ctx.fillStyle = `hsl(${hue}, 100%, 65%)`;
                         if (peakHeights[i] > 0.5) {
-                            const peakYPos = window.innerHeight - peakHeights[i];
-                            ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
+                            // Zaokrąglamy pozycję cegiełki szczytowej do siatki innych cegiełek, żeby idealnie pasowała
+                            const peakBrickIndex = Math.floor(peakHeights[i] / totalBrickStep);
+                            const peakYPos = window.innerHeight - (peakBrickIndex * totalBrickStep) - brickHeight;
+                            
+                            // Rysuj tylko, jeśli jest powyżej obecnego słupka cegiełek
+                            if (peakBrickIndex >= numberOfBricksInBar) {
+                                ctx.fillRect(x, peakYPos, barWidth - 4, brickHeight);
+                            }
                         }
                     }
                 }
 
-                requestAnimationFrame(draw);
+                requestAnimationFrame((time) => {
+                    lastTime = time;
+                    draw(time);
+                });
 
             } catch (err) {
-                console.error("Błąd mikrofonu:", err);
+                alert('Błąd dostępu do mikrofonu: ' + err.message);
+                startButton.style.display = 'block';
             }
         });
     </script>
